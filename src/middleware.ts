@@ -1,4 +1,11 @@
-import { auth } from "@/auth"
+import NextAuth from "next-auth"
+import authConfig from "@/auth.config"
+
+/**
+ * Edge-compatible middleware using lightweight auth config
+ * CRITICAL: This must NOT import from @/auth as it contains Prisma
+ */
+const { auth } = NextAuth(authConfig)
 
 export default auth((req) => {
     const isLoggedIn = !!req.auth

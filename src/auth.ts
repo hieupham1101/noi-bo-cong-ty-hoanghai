@@ -1,8 +1,14 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import prisma from "@/lib/prisma"
+import authConfig from "@/auth.config"
 
+/**
+ * Server-side NextAuth configuration with Prisma
+ * This file includes heavy dependencies and should NOT be imported in middleware
+ */
 export const { handlers, signIn, signOut, auth } = NextAuth({
+    ...authConfig,
     providers: [
         Credentials({
             name: "Credentials",
@@ -34,21 +40,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             },
         }),
     ],
-    callbacks: {
-        async jwt({ token, user }) {
-            if (user) {
-                token.role = user.role
-            }
-            return token
-        },
-        async session({ session, token }) {
-            if (session.user) {
-                session.user.role = token.role as string
-            }
-            return session
-        },
-    },
-    pages: {
-        signIn: "/login",
-    },
 })
