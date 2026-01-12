@@ -1,0 +1,162 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CategoryType {
+  LAPTOP_PHONE
+  APPLIANCE
+  ACCESSORY
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  sku       String   @unique // Map from 'Mã hàng'
+  name      String   // Map from 'Tên hàng'
+  costPrice Float    // Map from 'Giá vốn'
+  stock     Int      // Map from 'Tồn kho'
+  
+  // Shopee Specifics (User to update manually)
+  sellingPrice Float @default(0)
+  weight       Float @default(0) // From 'Trọng lượng' or manual
+  length       Float @default(0)
+  width        Float @default(0)
+  height       Float @default(0)
+  
+  // Status
+  isDimensionMissing Boolean @default(true) // Flag to warn user to update dimensions
+  
+  // Pricing Workstation fields
+  competitorPrice   Float?  // Competitor price for gap analysis
+  useFreeshshipXtra Boolean @default(true) // Per-product toggle for Freeship Xtra fee
+  
+  // FY2026 Pricing Fields
+  categoryType         CategoryType @default(ACCESSORY)
+  estimatedShippingFee Float        @default(50000) // Estimated shipping for payment fee calc
+  useVoucherXtra       Boolean @default(true) // Toggle for Voucher Xtra program
+  customFixedFee       Float?  // Manual override for Fixed Fee % (e.g. 7.5 for 7.5%)
+  
+  // Mall Category Relation
+  mallCategoryId String?
+  mallCategory   MallCategoryFee? @relation(fields: [mallCategoryId], references: [id], onDelete: SetNull)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastEditedBy String? // Store username of the staff who edited
+}
+
+model MallCategoryFee {
+  id           String    @id @default(cuid())
+  categoryName String    @unique  // e.g., "Điện tử lớn - Tủ lạnh"
+  feePercent   Float              // e.g., 5.5 for 5.5% (default/recommended fee)
+  minFee       Float?             // Official minimum fee for range display
+  maxFee       Float?             // Official maximum fee for range display
+  maxCap       Float?             // Optional max fee limit in VND
+  updatedAt    DateTime  @updatedAt
+  products     Product[]
+}
+
+model User {
+  id       String @id @default(cuid())
+  email    String @unique
+  password String
+  role     String @default("STAFF") // ADMIN or STAFF
+  name     String?
+}
+
+model Settings {
+  id                   String @id @default("default")
+  
+  // Legacy fields (kept for backwards compatibility)
+  paymentFeePercent    Float  @default(0.05)
+  fixedFeePercent      Float  @default(0.04)
+  serviceFeePercent    Float  @default(0.06)
+  serviceFeeMaxCap     Float  @default(40000)
+  volumetricDivisor    Float  @default(6000)
+  
+  // FY2026 Fee Structure
+  ratePayment          Float  @default(0.0491)   // 4.91% Payment fee
+  rateTax              Float  @default(0.015)    // 1.5% Tax deduction
+  rateFixedLaptop      Float  @default(0.0147)   // 1.47% for Laptop/Phone
+  rateFixedAppliance   Float  @default(0.0687)   // 6.87% for Appliances
+  rateVoucherXtra      Float  @default(0.04)     // 4% Voucher Xtra
+  capVoucherXtra       Float  @default(50000)    // 50k cap for Voucher Xtra
+  capServiceFee        Float  @default(53000)    // 53k cap for Service Fee (Freeship/Video)
+  feeInfrastructure    Float  @default(3000)     // 3k fixed infrastructure fee
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userName   String
+  action     String   // e.g., "Updated Price", "Changed Fee Logic"
+  details    String   // e.g., "SKU-123: 100k -> 120k"
+  createdAt  DateTime @default(now())
+}
+
+// ============================
+// SHOPEE FEE CALCULATION SYSTEM
+// ============================
+
+// Enum for shop types
+enum ShopType {
+  NORMAL  // Shop Thường
+  MALL    // Shop Mall
+}
+
+// Category model - stores product categories (e.g., Tivi, Tủ lạnh)
+model Category {
+  id        String    @id @default(cuid())
+  name      String    // Vietnamese category name (e.g., "Tivi", "Tủ lạnh")
+  slug      String    @unique // URL-friendly identifier (e.g., "tivi", "tu-lanh")
+  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  // Relation to FeeRate
+  feeRates  FeeRate[]
+}
+
+// FeeRate model - stores the specific fee percentage per category and shop type
+model FeeRate {
+  id         String   @id @default(cuid())
+  percentage Float    // Fee percentage (e.g., 5.5 for 5.5%)
+  
+  // Relations
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  shopType   ShopType // NORMAL or MALL
+  
+  // Audit timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  // Unique constraint: one rate per category per shop type
+  @@unique([categoryId, shopType])
+}
+
+
+
+model SystemConfig {
+  id                Int      @id @default(autoincrement())
+  paymentFeePercent Float    @default(0.0491)
+  fixedFeePercent   Float    @default(0.04)
+
+  serviceFeePercent Float    @default(0.06)
+  maxServiceFee     Int      @default(40000)
+  weightConstant    Int      @default(6000)
+  updatedAt         DateTime @updatedAt
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String?  // Nullable if system action
+  actionType String   // e.g., 'UPDATE_PRODUCT', 'IMPORT_EXCEL'
+  entityName String   // e.g., Product Name or SKU
+  details    Json?    // Structured diff or metadata
+  createdAt  DateTime @default(now())
+}
