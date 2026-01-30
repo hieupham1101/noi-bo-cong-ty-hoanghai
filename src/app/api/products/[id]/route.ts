@@ -1,5 +1,6 @@
 import { logActivity } from '@/lib/logger'
 import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import prisma from '@/lib/prisma'
 import { auth } from '@/auth'
 import { Product, CategoryType } from '@prisma/client'
@@ -96,10 +97,15 @@ export async function PATCH(
             await logActivity({
                 userId: session.user?.email || 'Unknown',
                 actionType: 'UPDATE_PRODUCT',
-                entityName: product.name, // or product.sku? user asked for EntityName e.g. Product Name or SKU
+                entityName: product.name,
+                entityId: product.id,
                 details: diffs
             })
         }
+
+        // CRITICAL FIX: Revalidate paths to refresh UI immediately
+        revalidatePath('/dashboard')
+        revalidatePath('/dashboard/activity')
 
         return NextResponse.json(product)
     } catch (error) {

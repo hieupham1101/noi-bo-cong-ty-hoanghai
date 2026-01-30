@@ -138,13 +138,13 @@ interface ActivityLog {
 }
 
 // --- Edit History Section Component ---
-function EditHistorySection({ productSku, productName }: { productSku: string, productName: string }) {
+function EditHistorySection({ entityId, productName }: { entityId: string, productName: string }) {
     const [isExpanded, setIsExpanded] = useState(false)
 
     const { data, isLoading } = useQuery<{ logs: ActivityLog[] }>({
-        queryKey: ['product-activity', productSku],
+        queryKey: ['product-activity', entityId],
         queryFn: async () => {
-            const params = new URLSearchParams({ sku: productSku })
+            const params = new URLSearchParams({ entityId: entityId })
             const res = await fetch(`/api/activity?${params}`)
             if (!res.ok) throw new Error('Failed to fetch')
             return res.json()
@@ -933,20 +933,7 @@ export function ProductDetailSheet({
                                             </div>
                                         </div>
 
-                                        {/* Calculated Net Profit */}
-                                        <div className={cn("flex items-center justify-between p-3 rounded-lg border",
-                                            (calculatedProfit ?? 0) > 0 ? "border-emerald-100 bg-emerald-50/50" : "border-rose-100 bg-rose-50/50"
-                                        )}>
-                                            <div className="space-y-0.5">
-                                                <Label className={cn("text-sm font-bold", (calculatedProfit ?? 0) > 0 ? "text-emerald-900" : "text-rose-900")}>Lợi nhuận ròng</Label>
-                                                <p className={cn("text-[10px]", (calculatedProfit ?? 0) > 0 ? "text-emerald-700/80" : "text-rose-700/80")}>Ước tính theo thời gian thực</p>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className={cn("font-bold", (calculatedProfit ?? 0) > 0 ? "text-emerald-700" : "text-rose-700")}>
-                                                    {calculatedProfit !== null ? formatCurrency(calculatedProfit) : '--'}
-                                                </span>
-                                            </div>
-                                        </div>
+
 
                                         {/* Row 2: Freeship Xtra */}
                                         <div className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-slate-200 transition-colors">
@@ -1158,7 +1145,7 @@ export function ProductDetailSheet({
 
                         {/* --- EDIT HISTORY SECTION --- */}
                         <div className="lg:col-span-12 border-t border-slate-200 bg-white">
-                            <EditHistorySection productSku={product.sku} productName={product.name} />
+                            <EditHistorySection entityId={product.id} productName={product.name} />
                         </div>
 
                     </div>

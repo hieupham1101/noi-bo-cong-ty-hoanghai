@@ -156,7 +156,8 @@ model ActivityLog {
   id         String   @id @default(cuid())
   userId     String?  // Nullable if system action
   actionType String   // e.g., 'UPDATE_PRODUCT', 'IMPORT_EXCEL'
-  entityName String   // e.g., Product Name or SKU
+  entityName String   // e.g., Product Name or SKU (Display purpose)
+  entityId   String?  // Stable reference to the entity (e.g. Product ID)
   details    Json?    // Structured diff or metadata
   createdAt  DateTime @default(now())
 }

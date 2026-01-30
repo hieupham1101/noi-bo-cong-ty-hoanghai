@@ -2,6 +2,8 @@
 
 import prisma from '@/lib/prisma'
 import { calculateShopeeFee, FeeRateNotFoundError } from '@/lib/shopee-logic'
+import { getSystemConfig } from '@/app/actions/system-config'
+import { safeRound } from '@/lib/utils'
 
 /**
  * Fetch all categories from the database
@@ -64,6 +66,31 @@ export async function calculateFee(
         }
     } catch (error) {
         if (error instanceof FeeRateNotFoundError) {
+            try {
+                // Priority 3: Graceful Fallback to SystemConfig
+                // If Category Config is MISSING, fetch and return global SystemConfig values
+                const config = await getSystemConfig()
+
+                // SystemConfig fixedFeePercent is typically stored as decimal (e.g. 0.04)
+                // We return it as percentage (e.g. 4) to match FeeRate format
+                const fallbackFeeRate = config.fixedFeePercent * 100
+                const feeAmount = safeRound(price * config.fixedFeePercent)
+                const finalReceivedAmount = safeRound(price - feeAmount)
+
+                return {
+                    success: true,
+                    data: {
+                        originalPrice: price,
+                        feeRate: fallbackFeeRate,
+                        feeAmount: feeAmount,
+                        finalReceivedAmount: finalReceivedAmount
+                    }
+                }
+            } catch (fallbackError) {
+                console.error('Fallback fee calculation failed:', fallbackError)
+                // Fall through to generic error if even fallback fails
+            }
+
             return {
                 success: false,
                 error: `Chưa cấu hình phí cho danh mục này. Vui lòng liên hệ Admin.`

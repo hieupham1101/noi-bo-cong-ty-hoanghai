@@ -4,16 +4,18 @@ interface LogActivityParams {
     userId?: string | null
     actionType: string
     entityName: string
+    entityId?: string // Optional for backward compatibility, but highly recommended
     details?: any
 }
 
-export async function logActivity({ userId, actionType, entityName, details }: LogActivityParams) {
+export async function logActivity({ userId, actionType, entityName, entityId, details }: LogActivityParams) {
     try {
         await prisma.activityLog.create({
             data: {
                 userId,
                 actionType,
                 entityName,
+                entityId,
                 details: details ?? {},
             },
         })

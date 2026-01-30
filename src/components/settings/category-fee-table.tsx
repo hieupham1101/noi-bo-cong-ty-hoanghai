@@ -20,10 +20,11 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog'
-import { updateFeeRate } from '@/app/admin/fees/actions'
+import { updateFeeRate, createCategory } from '@/app/admin/fees/actions'
 import { formatDistanceToNow } from 'date-fns'
 import { vi } from 'date-fns/locale'
-import { Pencil, Loader2, Store, Building2, Check, X } from 'lucide-react'
+import { Pencil, Loader2, Store, Building2, Check, X, Plus } from 'lucide-react'
+import { toast } from 'sonner'
 
 // Define the interface locally or import if shared. 
 // For now, I'll redefine compatible with the one in actions.ts to avoid circular deps if actions import components (unlikely but safe).
@@ -50,6 +51,13 @@ export default function CategoryFeeTable({ initialData }: CategoryFeeTableProps)
     const [error, setError] = useState('')
     const [isPending, startTransition] = useTransition()
 
+    // Add Category Dialog State
+    const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+    const [newCategoryName, setNewCategoryName] = useState('')
+    const [newNormalRate, setNewNormalRate] = useState('')
+    const [newMallRate, setNewMallRate] = useState('')
+    const [addError, setAddError] = useState('')
+
     const openEditModal = (category: CategoryWithRates) => {
         setEditingCategory(category)
         setNormalRate(category.normalRate?.toString() ?? '')
@@ -62,6 +70,74 @@ export default function CategoryFeeTable({ initialData }: CategoryFeeTableProps)
         setNormalRate('')
         setMallRate('')
         setError('')
+    }
+
+    const closeAddDialog = () => {
+        setIsAddDialogOpen(false)
+        setNewCategoryName('')
+        setNewNormalRate('')
+        setNewMallRate('')
+        setAddError('')
+    }
+
+    const handleAddCategory = () => {
+        setAddError('')
+
+        if (!newCategoryName.trim()) {
+            setAddError('Tên danh mục không được để trống')
+            return
+        }
+
+        const normalValue = parseFloat(newNormalRate)
+        const mallValue = parseFloat(newMallRate)
+
+        if (isNaN(normalValue) || isNaN(mallValue)) {
+            setAddError('Vui lòng nhập số hợp lệ cho phí')
+            return
+        }
+
+        startTransition(async () => {
+            const result = await createCategory({
+                categoryName: newCategoryName.trim(),
+                normalFeePercent: normalValue,
+                mallFeePercent: mallValue
+            })
+
+            if (!result.success) {
+                setAddError(result.error || 'Đã xảy ra lỗi')
+                return
+            }
+
+            // Add new category to local state
+            const slug = newCategoryName
+                .trim()
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/đ/g, 'd')
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '')
+
+            setData(prev => [
+                ...prev,
+                {
+                    id: result.categoryId || slug,
+                    name: newCategoryName.trim(),
+                    slug,
+                    normalRate: normalValue,
+                    normalRateId: null,
+                    mallRate: mallValue,
+                    mallRateId: null,
+                    updatedAt: new Date()
+                }
+            ])
+
+            toast.success('Thêm danh mục thành công!', {
+                description: `Đã thêm danh mục "${newCategoryName.trim()}" với phí ${normalValue}% / ${mallValue}%`
+            })
+
+            closeAddDialog()
+        })
     }
 
     const handleSave = () => {
@@ -120,6 +196,20 @@ export default function CategoryFeeTable({ initialData }: CategoryFeeTableProps)
 
     return (
         <>
+            {/* Header with Add Button */}
+            <div className="flex items-center justify-between mb-4">
+                <div className="text-sm text-muted-foreground">
+                    {data.length} danh mục
+                </div>
+                <Button
+                    onClick={() => setIsAddDialogOpen(true)}
+                    className="gap-1.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+                >
+                    <Plus className="w-4 h-4" />
+                    Thêm danh mục
+                </Button>
+            </div>
+
             <div className="rounded-xl border bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
                 <Table>
                     <TableHeader>
@@ -279,6 +369,116 @@ export default function CategoryFeeTable({ initialData }: CategoryFeeTableProps)
                                 <>
                                     <Check className="w-4 h-4 mr-1.5" />
                                     Lưu thay đổi
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Add Category Modal */}
+            <Dialog open={isAddDialogOpen} onOpenChange={(open) => !open && closeAddDialog()}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Plus className="w-5 h-5 text-green-500" />
+                            Thêm danh mục mới
+                        </DialogTitle>
+                        <DialogDescription>
+                            Nhập thông tin danh mục và tỷ lệ phí cho từng loại shop
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-4">
+                        {/* Category Name Input */}
+                        <div className="space-y-2">
+                            <Label htmlFor="newCategoryName">
+                                Tên danh mục <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                                id="newCategoryName"
+                                type="text"
+                                value={newCategoryName}
+                                onChange={(e) => setNewCategoryName(e.target.value)}
+                                placeholder="VD: Máy sấy tóc"
+                            />
+                        </div>
+
+                        {/* Normal Rate Input */}
+                        <div className="space-y-2">
+                            <Label htmlFor="newNormalRate" className="flex items-center gap-2">
+                                <Store className="w-4 h-4 text-orange-500" />
+                                Phí Shop Thường (%)
+                            </Label>
+                            <div className="relative">
+                                <Input
+                                    id="newNormalRate"
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    max="100"
+                                    value={newNormalRate}
+                                    onChange={(e) => setNewNormalRate(e.target.value)}
+                                    placeholder="VD: 7.5"
+                                    className="pr-8"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                                    %
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Mall Rate Input */}
+                        <div className="space-y-2">
+                            <Label htmlFor="newMallRate" className="flex items-center gap-2">
+                                <Building2 className="w-4 h-4 text-red-500" />
+                                Phí Shopee Mall (%)
+                            </Label>
+                            <div className="relative">
+                                <Input
+                                    id="newMallRate"
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    max="100"
+                                    value={newMallRate}
+                                    onChange={(e) => setNewMallRate(e.target.value)}
+                                    placeholder="VD: 5.5"
+                                    className="pr-8"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                                    %
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Error Display */}
+                        {addError && (
+                            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm dark:bg-red-950/50 dark:border-red-800 dark:text-red-300">
+                                {addError}
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button variant="outline" onClick={closeAddDialog} disabled={isPending}>
+                            <X className="w-4 h-4 mr-1.5" />
+                            Hủy
+                        </Button>
+                        <Button
+                            onClick={handleAddCategory}
+                            disabled={isPending}
+                            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+                        >
+                            {isPending ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                                    Đang tạo...
+                                </>
+                            ) : (
+                                <>
+                                    <Plus className="w-4 h-4 mr-1.5" />
+                                    Thêm danh mục
                                 </>
                             )}
                         </Button>

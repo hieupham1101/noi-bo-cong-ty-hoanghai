@@ -12,7 +12,8 @@ import {
     Calculator,
     User,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    FlaskConical
 } from "lucide-react"
 import { signOut, useSession } from "next-auth/react"
 import { useState } from "react"
@@ -23,6 +24,7 @@ const sidebarItems = [
     { name: "Lịch sử hoạt động", href: "/dashboard/activity", icon: History },
     { name: "Cấu hình", href: "/dashboard/settings", icon: Settings },
     { name: "Nhập Excel", href: "/dashboard/import", icon: FileUp },
+    { name: "Test Định Giá", href: "/dashboard/pricing-test", icon: FlaskConical },
 ]
 
 export function Sidebar({ className }: { className?: string }) {

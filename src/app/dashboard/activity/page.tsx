@@ -43,82 +43,28 @@ interface RecentProductsResponse {
     total: number
 }
 
-export default function RecentProductsPage() {
+export default function ActivityLogPage() {
     const router = useRouter()
     const [search, setSearch] = useState('')
-    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-    const [isSheetOpen, setIsSheetOpen] = useState(false)
+    const [page, setPage] = useState(1)
 
-    // Fetch system config for the modal
-    const { data: systemConfig } = useQuery({
-        queryKey: ['systemConfig'],
-        queryFn: async () => getSystemConfig()
-    })
-
-    // Fetch recently updated products
-    const { data, isLoading, refetch } = useQuery<RecentProductsResponse>({
-        queryKey: ['recent-products', search],
+    // Fetch Activity Logs
+    const { data, isLoading } = useQuery({
+        queryKey: ['activity-logs', search, page],
         queryFn: async () => {
-            const params = new URLSearchParams({ search, limit: '30' })
-            const res = await fetch(`/api/recent-products?${params}`)
-            if (!res.ok) throw new Error('Failed to fetch')
+            const params = new URLSearchParams({
+                search,
+                page: page.toString(),
+                limit: '20'
+            })
+            const res = await fetch(`/api/activity?${params}`)
+            if (!res.ok) throw new Error('Failed to fetch activity logs')
             return res.json()
         }
     })
 
-    const products = data?.products || []
-
-    // Legacy settings for ProductDetailSheet compatibility
-    const legacySettings: ShopeeSettings = {
-        paymentFeePercent: 0.0491,
-        fixedFeePercent: 0,
-        serviceFeePercent: systemConfig?.serviceFeePercent || 0.06,
-        serviceFeeMaxCap: systemConfig?.maxServiceFee || 40000,
-        volumetricDivisor: systemConfig?.weightConstant || 6000,
-        ratePayment: 0.0491,
-        rateTax: 0.015,
-        rateFixedLaptop: 0.0147,
-        rateFixedAppliance: 0.0687,
-        rateFixedAccessory: 0.0884,
-        rateVoucherXtra: 0.04,
-        capVoucherXtra: 50000,
-        feeInfrastructure: 3000,
-        capServiceFee: 53000
-    }
-
-    // Update product mutation
-    const updateMutation = useMutation({
-        mutationFn: async ({ id, data }: { id: string; data: Partial<Product> }) => {
-            const res = await fetch(`/api/products/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-            if (!res.ok) throw new Error('Update failed')
-            return res.json()
-        },
-        onSuccess: () => {
-            refetch()
-            router.refresh()
-        },
-    })
-
-    const handleUpdateProduct = async (id: string, data: Partial<Product>) => {
-        return updateMutation.mutateAsync({ id, data })
-    }
-
-    const handleProductClick = (product: Product) => {
-        setSelectedProduct(product)
-        setIsSheetOpen(true)
-    }
-
-    if (isLoading) {
-        return (
-            <div className="flex justify-center p-20">
-                <Loader2 className="animate-spin h-8 w-8 text-indigo-600" />
-            </div>
-        )
-    }
+    const logs = data?.logs || []
+    const pagination = data?.pagination
 
     return (
         <div className="h-[calc(100vh-2rem)] flex flex-col space-y-4">
@@ -128,10 +74,10 @@ export default function RecentProductsPage() {
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
                             <Clock className="h-6 w-6 text-indigo-600" />
-                            Sản phẩm cập nhật gần đây
+                            Lịch sử hoạt động
                         </h1>
                         <p className="text-sm text-slate-500">
-                            Danh sách sản phẩm được chỉnh sửa gần đây nhất. Click để xem chi tiết và lịch sử chỉnh sửa.
+                            Nhật ký thay đổi toàn hệ thống (Chỉ xem).
                         </p>
                     </div>
                 </div>
@@ -140,95 +86,115 @@ export default function RecentProductsPage() {
                 <div className="relative flex-1 min-w-[200px] max-w-sm">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                     <Input
-                        placeholder="Tìm kiếm theo SKU hoặc Tên sản phẩm..."
+                        placeholder="Tìm kiếm log..."
                         className="pl-9 bg-white"
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={(e) => {
+                            setSearch(e.target.value)
+                            setPage(1)
+                        }}
                     />
                 </div>
             </div>
 
-            {/* Products List */}
+            {/* Logs List - Read Only Table */}
             <ScrollArea className="flex-1 -mx-4 px-4">
-                <div className="space-y-3 pb-10">
-                    {products.length === 0 ? (
+                <div className="space-y-2 pb-10">
+                    {isLoading ? (
+                        <div className="flex justify-center p-20">
+                            <Loader2 className="animate-spin h-8 w-8 text-indigo-600" />
+                        </div>
+                    ) : logs.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                             <div className="bg-slate-50 p-4 rounded-full mb-4">
-                                <Package className="h-8 w-8 text-slate-300" />
+                                <Clock className="h-8 w-8 text-slate-300" />
                             </div>
-                            <p>Không tìm thấy sản phẩm nào.</p>
+                            <p>Không tìm thấy hoạt động nào.</p>
                         </div>
                     ) : (
-                        products.map((product) => (
-                            <Card
-                                key={product.id}
-                                className="cursor-pointer hover:shadow-md hover:border-indigo-200 transition-all group"
-                                onClick={() => handleProductClick(product)}
-                            >
-                                <CardContent className="p-4">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="font-semibold text-slate-900 truncate">
-                                                    {product.name}
-                                                </span>
-                                                <Badge variant="secondary" className="text-[10px] font-mono shrink-0">
-                                                    {product.sku}
-                                                </Badge>
-                                            </div>
-                                            <div className="flex items-center gap-4 text-xs text-slate-500">
-                                                <span className="flex items-center gap-1">
-                                                    <Clock className="h-3 w-3" />
-                                                    {formatDistanceToNow(new Date(product.updatedAt), {
+                        <div className="w-full text-sm text-left">
+                            <table className="w-full">
+                                <thead className="text-xs text-slate-500 bg-slate-50 uppercase sticky top-0">
+                                    <tr>
+                                        <th className="px-4 py-3 font-medium">Thời gian</th>
+                                        <th className="px-4 py-3 font-medium">Người dùng</th>
+                                        <th className="px-4 py-3 font-medium">Đối tượng</th>
+                                        <th className="px-4 py-3 font-medium">Chi tiết thay đổi</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {logs.map((log: any) => {
+                                        const parsed = (() => {
+                                            // Handle potential raw JSON strings or objects
+                                            try {
+                                                return typeof log.details === 'string'
+                                                    ? JSON.parse(log.details)
+                                                    : log.details
+                                            } catch {
+                                                return {}
+                                            }
+                                        })()
+
+                                        // Simple formatter for display
+                                        const formatChanges = (changes: any) => {
+                                            if (!changes) return log.actionType
+
+                                            // If it's a simple import message or string
+                                            if (typeof changes === 'string') return changes
+
+                                            // If it shows old/new structure
+                                            return Object.entries(changes).map(([key, val]: [string, any]) => {
+                                                // Skip if val is not object with old/new
+                                                if (!val || typeof val !== 'object') return `${key}: ${val}`
+                                                return (
+                                                    <div key={key} className="flex items-center gap-1.5 py-0.5">
+                                                        <span className="font-medium text-slate-600">{key}:</span>
+                                                        <span className="line-through text-slate-400">{String(val.old)}</span>
+                                                        <span className="text-slate-400">→</span>
+                                                        <span className="font-bold text-slate-800">{String(val.new)}</span>
+                                                    </div>
+                                                )
+                                            })
+                                        }
+
+                                        return (
+                                            <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                                                <td className="px-4 py-3 whitespace-nowrap text-slate-500 w-[180px]">
+                                                    {formatDistanceToNow(new Date(log.createdAt), {
                                                         addSuffix: true,
                                                         locale: vi
                                                     })}
-                                                </span>
-                                                {product.lastEditedBy && (
-                                                    <span className="flex items-center gap-1">
-                                                        <Edit2 className="h-3 w-3" />
-                                                        {product.lastEditedBy}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-4 shrink-0">
-                                            <div className="text-right">
-                                                <div className="text-xs text-slate-400 uppercase">Tồn kho</div>
-                                                <Badge
-                                                    variant={product.stock === 0 ? "destructive" : "secondary"}
-                                                    className="font-mono"
-                                                >
-                                                    {product.stock}
-                                                </Badge>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-xs text-slate-400 uppercase">Giá bán</div>
-                                                <span className="font-bold text-slate-900">
-                                                    {product.sellingPrice.toLocaleString()}đ
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))
+                                                </td>
+                                                <td className="px-4 py-3 whitespace-nowrap w-[200px]">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center">
+                                                            <span className="text-xs font-bold text-slate-500">
+                                                                {(log.userId || 'S').charAt(0).toUpperCase()}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-slate-700 truncate max-w-[150px]" title={log.userId}>
+                                                            {log.userId || 'System'}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 whitespace-nowrap font-medium text-indigo-600 w-[200px]">
+                                                    {log.entityName}
+                                                </td>
+                                                <td className="px-4 py-3 text-slate-600">
+                                                    {formatChanges(parsed)}
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     )}
                 </div>
             </ScrollArea>
 
-            {/* ProductDetailSheet Modal */}
-            {systemConfig && (
-                <ProductDetailSheet
-                    product={selectedProduct}
-                    systemConfig={systemConfig}
-                    settings={legacySettings}
-                    open={isSheetOpen}
-                    onOpenChange={setIsSheetOpen}
-                    onSave={handleUpdateProduct}
-                />
-            )}
+            {/* Pagination Controls could go here if needed, keeping it simple for now as infinite scroll is preferred or clean list */}
         </div>
     )
 }
+    

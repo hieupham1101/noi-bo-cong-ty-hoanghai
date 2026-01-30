@@ -182,17 +182,21 @@ export function ProfitTable({ systemConfig, initialProducts, pagination }: Profi
     // Debounce search update
     useEffect(() => {
         const timer = setTimeout(() => {
-            const params = new URLSearchParams(searchParams.toString())
-            if (searchTerm) {
-                params.set('query', searchTerm)
-            } else {
-                params.delete('query')
-            }
-            // Always reset to page 1 on new search
-            if (searchTerm !== (searchParams.get('query') || '')) {
+            const currentQuery = searchParams.get('query') || ''
+
+            // CRITICAL: Only push if the value ACTUALLY changed
+            if (searchTerm !== currentQuery) {
+                const params = new URLSearchParams(searchParams.toString())
+                if (searchTerm) {
+                    params.set('query', searchTerm)
+                } else {
+                    params.delete('query')
+                }
+                // Always reset to page 1 on new search
                 params.set('page', '1')
+
+                router.replace(`${pathname}?${params.toString()}`)
             }
-            router.replace(`${pathname}?${params.toString()}`)
         }, 300)
 
         return () => clearTimeout(timer)

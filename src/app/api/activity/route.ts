@@ -10,7 +10,8 @@ export async function GET(req: Request) {
     const page = parseInt(searchParams.get('page') || '1')
     const search = searchParams.get('search') || ''
     const user = searchParams.get('user') || 'all'
-    const sku = searchParams.get('sku') || ''  // Filter by product SKU
+    const sku = searchParams.get('sku') || ''  // Filter by product SKU (Legacy)
+    const entityId = searchParams.get('entityId') || '' // Exact filter by Entity ID
     const limit = 20
     const skip = (page - 1) * limit
 
@@ -18,8 +19,10 @@ export async function GET(req: Request) {
         // Build filter conditions
         const where: any = {}
 
-        // If SKU is provided, filter by entityName (which contains the product name/SKU)
-        if (sku) {
+        if (entityId) {
+            where.entityId = entityId
+        } else if (sku) {
+            // Fallback for SKU search if no ID provided
             where.entityName = { contains: sku, mode: 'insensitive' }
         }
 
@@ -66,3 +69,5 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: 'Failed to fetch logs' }, { status: 500 })
     }
 }
+
+
